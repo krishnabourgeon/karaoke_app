@@ -1,0 +1,11 @@
+-keep class com.ryanheise.** { *; }
+-keep class androidx.media.** { *; }
+-keep class android.support.v4.media.** { *; }
+-keep class com.google.android.exoplayer2.** { *; }
+-keep class androidx.media3.** { *; }
+-keep class io.flutter.plugins.videoplayer.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-keep class io.flutter.plugin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keep class kotlin.** { *; }
+-keep class com.github.dart_lang.jni.** { *; }
