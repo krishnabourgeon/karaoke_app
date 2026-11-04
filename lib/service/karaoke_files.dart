@@ -77,6 +77,28 @@ class KaraokeFiles {
   Future<String> newMixPath({required bool video}) async =>
       '${(await _dir('mixes')).path}/mix_${_stamp()}${video ? '.mp4' : '.m4a'}';
 
+  /// `docs/karaoke/name`, or `cache/karaoke/name` with [cache].
+  Future<Directory> folder(String name, {bool cache = false}) =>
+      _dir(name, cache: cache);
+
+  Future<String> newRenderPath(String extension) async =>
+      '${(await _dir('mixes')).path}/mix_${_stamp()}$extension';
+
+  /// Short-lived preview clips; safe to delete at any time.
+  Future<String> previewPath(String key) async =>
+      '${(await _dir('preview', cache: true)).path}/$key.m4a';
+
+  /// Removes preview clips older than [maxAge].
+  Future<void> clearOldPreviews({Duration maxAge = const Duration(days: 1)}) async {
+    final dir = await _dir('preview', cache: true);
+    final cutoff = DateTime.now().subtract(maxAge);
+    await for (final f in dir.list()) {
+      if (f is File && (await f.lastModified()).isBefore(cutoff)) {
+        await f.delete();
+      }
+    }
+  }
+
   Future<void> deleteIfExists(String? path) async {
     if (path == null) return;
     final file = File(path);

@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:karaoke_app/provider/upload_provider.dart';
 import 'package:karaoke_app/view/common_widgets/swaram_common.dart';
 import 'package:karaoke_app/view/common_widgets/track.dart';
 import 'library_store.dart';
 import 'song_detail_screen.dart';
 import 'upload_screen.dart';
 import 'video_player_screen.dart';
+import 'package:provider/provider.dart';
+
 
 enum _Category { language, genre, vibe }
 
@@ -39,10 +44,15 @@ class SearchScreen extends StatefulWidget {
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
+
 }
 
 class _SearchScreenState extends State<SearchScreen>
     with SingleTickerProviderStateMixin {
+
+Timer? _searchDebounce;
+UploadProvider? _uploadProvider;
+
   static const _tileColors = [
     SwaramColors.amber,
     SwaramColors.pinkSoft,
@@ -63,7 +73,50 @@ class _SearchScreenState extends State<SearchScreen>
   String? _vibe;
 
   @override
+  void initState() {
+    super.initState();
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      _uploadProvider = context.read<UploadProvider>();
+
+      _uploadProvider!.getMasters();
+
+      _callSearchApi();
+    });
+  }
+
+  Future<void> _callSearchApi() async {
+    if (!mounted) return;
+
+    final provider = context.read<UploadProvider>();
+
+    await provider.searchSongs(
+      search: _query.trim(),
+      languageid: _language ?? '',
+      genreid: _genre ?? '',
+      vibeid: _vibe ?? '',
+    );
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _query = value;
+    });
+
+    _searchDebounce?.cancel();
+
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 400),
+      () {
+        _callSearchApi();
+      },
+    );
+  }
+
+  @override
   void dispose() {
+    _searchDebounce?.cancel();
     _controller.dispose();
     _enter.dispose();
     super.dispose();
@@ -100,54 +153,63 @@ class _SearchScreenState extends State<SearchScreen>
       switch (c) {
         case _Category.language:
           _language = value;
+
         case _Category.genre:
           _genre = value;
+
         case _Category.vibe:
           _vibe = value;
       }
     });
+
+    _callSearchApi();
   }
 
   bool get _hasFilters => _language != null || _genre != null || _vibe != null;
   bool get _browsing => _query.trim().isEmpty && !_hasFilters;
 
-  /// Values used in [c] with how many songs have each, most songs first.
-  List<MapEntry<String, int>> _options(_Category c) {
-    final counts = <String, int>{};
-    for (final t in LibraryStore.instance.tracks) {
-      final v = _valueOf(t, c);
-      if (v.isEmpty) continue;
-      counts[v] = (counts[v] ?? 0) + 1;
+
+  List<({String id, String name})> _options(_Category c) {
+    final provider = context.read<UploadProvider>();
+
+    switch (c) {
+      case _Category.language:
+        return provider.languagesList
+          .map((e) => (
+                id: e.id.toString(),
+                name: e.name,
+              ))
+          .toList();
+
+      case _Category.genre:
+        return provider.genresList
+          .map((e) => (
+                id: e.id.toString(),
+                name: e.name,
+              ))
+          .toList();
+
+      case _Category.vibe:
+        return provider.vibesList
+          .map((e) => (
+                id: e.id.toString(),
+                name: e.name,
+              ))
+          .toList();
+      }
     }
-    return counts.entries.toList()
-      ..sort((a, b) {
-        final byCount = b.value.compareTo(a.value);
-        return byCount != 0 ? byCount : a.key.compareTo(b.key);
-      });
-  }
 
   List<Track> _results() {
-    final q = _query.trim().toLowerCase();
-    return LibraryStore.instance.tracks.where((t) {
-      if (_language != null && _valueOf(t, _Category.language) != _language) {
-        return false;
-      }
-      if (_genre != null && _valueOf(t, _Category.genre) != _genre) {
-        return false;
-      }
-      if (_vibe != null && _valueOf(t, _Category.vibe) != _vibe) {
-        return false;
-      }
-      if (q.isEmpty) return true;
-      final haystack = [
-        t.title,
-        t.uploader,
-        _s(t.language),
-        _s(t.genre),
-        _s(t.vibe),
-      ].join(' ').toLowerCase();
-      return haystack.contains(q);
-    }).toList();
+    final songs = context.read<UploadProvider>().songSearchList;
+    final query = _query.trim().toLowerCase();
+
+    final matches = query.isEmpty
+        ? songs
+        : songs.where((song) {
+            return song.title.toLowerCase().contains(query) ||
+                song.uploadedBy.name.toLowerCase().contains(query);
+          });
+    return matches.map(Track.fromSearch).toList();
   }
 
   void _clearAll() {
@@ -159,6 +221,9 @@ class _SearchScreenState extends State<SearchScreen>
       _genre = null;
       _vibe = null;
     });
+
+    _searchDebounce?.cancel();
+    _callSearchApi();
   }
 
   // ---------- actions ----------
@@ -217,9 +282,8 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: LibraryStore.instance,
-      builder: (context, _) {
+    return Consumer<UploadProvider>(
+      builder: (context, uploadProvider,_) {
         final browsing = _browsing;
         final results = browsing ? const <Track>[] : _results();
 
@@ -291,7 +355,7 @@ class _SearchScreenState extends State<SearchScreen>
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      onChanged: (v) => setState(() => _query = v),
+                      onChanged: _onSearchChanged,
                       textInputAction: TextInputAction.search,
                       cursorColor: SwaramColors.amber,
                       style: const TextStyle(
@@ -309,7 +373,7 @@ class _SearchScreenState extends State<SearchScreen>
                     GestureDetector(
                       onTap: () {
                         _controller.clear();
-                        setState(() => _query = '');
+                        _onSearchChanged('');
                       },
                       child: const Icon(Icons.close,
                           color: SwaramColors.muted, size: 20),
@@ -405,7 +469,7 @@ class _SearchScreenState extends State<SearchScreen>
               (context, i) {
                 final entry = options[i];
                 return TweenAnimationBuilder<double>(
-                  key: ValueKey('${_tab.name}-${entry.key}'),
+                  key: ValueKey('${_tab.name}-${entry.id}'),
                   tween: Tween(begin: 0, end: 1),
                   duration: Duration(milliseconds: 280 + (i < 8 ? i : 8) * 50),
                   curve: Curves.easeOutCubic,
@@ -413,12 +477,20 @@ class _SearchScreenState extends State<SearchScreen>
                     opacity: v,
                     child: Transform.scale(scale: 0.92 + 0.08 * v, child: child),
                   ),
-                  child: _CategoryTile(
-                    label: entry.key,
-                    count: entry.value,
+                  child: 
+                  // _CategoryTile(
+                  //   label: entry.key,
+                  //   count: entry.value,
+                  //   icon: _tab.icon,
+                  //   color: _tileColors[i % _tileColors.length],
+                  //   onTap: () => _select(_tab, entry.key),
+                  // ),
+                  _CategoryTile(
+                    label: entry.name,
+                    count: 0,
                     icon: _tab.icon,
                     color: _tileColors[i % _tileColors.length],
-                    onTap: () => _select(_tab, entry.key),
+                    onTap: () => _select(_tab, entry.id),
                   ),
                 );
               },
@@ -566,9 +638,9 @@ class _SearchScreenState extends State<SearchScreen>
                 for (final o in options) ...[
                   const SizedBox(width: 8),
                   _FilterChip(
-                    label: o.key,
-                    selected: selected == o.key,
-                    onTap: () => _select(c, selected == o.key ? null : o.key),
+                    label: o.name,
+                    selected: selected == o.id,
+                    onTap: () => _select(c, selected == o.id ? null : o.id),
                   ),
                 ],
               ],

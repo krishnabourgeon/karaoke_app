@@ -524,11 +524,19 @@ class _SwaramBottomNavState extends State<SwaramBottomNav>
     with SingleTickerProviderStateMixin {
   final GlobalKey _plusKey = GlobalKey();
 
-  late final AnimationController _menu = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 420),
-    reverseDuration: const Duration(milliseconds: 200),
-  );
+  // Created in initState, not lazily: a lazy controller would first be built
+  // inside dispose() when the menu was never opened, which throws.
+  late final AnimationController _menu;
+
+  @override
+  void initState() {
+    super.initState();
+    _menu = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+      reverseDuration: const Duration(milliseconds: 200),
+    );
+  }
 
   late final Animation<double> _scrim =
       CurvedAnimation(parent: _menu, curve: Curves.easeOut);

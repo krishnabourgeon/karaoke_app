@@ -254,10 +254,18 @@ class LibraryStore extends ChangeNotifier {
   int _points = startingPoints;
   String uploaderName = '@arjun_n';
 
+  /// Songs from the `songs` API, filled by UploadProvider.getSongs().
+  List<Track> _songs = [];
+
   int get points => _points;
 
-  /// Newest uploads first, then the sample tracks.
-  List<Track> get tracks => [..._uploaded.reversed, ...kSampleTracks];
+  /// The song list every screen shows (dashboard, search, library, record).
+  List<Track> get tracks => List.unmodifiable(_songs);
+
+  void setSongs(List<Track> songs) {
+    _songs = songs;
+    notifyListeners();
+  }
 
   bool isDownloaded(String id) => _downloaded.contains(id);
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:karaoke_app/model/get_songs_model.dart';
+import 'package:karaoke_app/model/search_model.dart';
 import 'swaram_common.dart';
 
 class Track {
@@ -28,6 +30,39 @@ class Track {
     required this.vibe,
   });
 
+  /// Builds a track from a song returned by the `songs` API.
+  factory Track.fromSong(SongList s) => Track(
+        id: s.id.toString(),
+        title: s.title,
+        language: s.language?.name ?? '',
+        duration: s.durationLabel ?? _formatSeconds(s.duration),
+        uploader: s.uploadedBy?.name ?? '',
+        audioUrl: s.mediaUrl,
+        isVideo: s.isVideo,
+        genre: s.genre?.name ?? '',
+        vibe: s.vibe?.name ?? '',
+      );
+
+  /// Builds a track from a song returned by the search API.
+  factory Track.fromSearch(SongSearch s) => Track(
+        id: s.id.toString(),
+        title: s.title,
+        language: s.language.name,
+        duration: s.durationLabel ?? _formatSeconds(s.duration),
+        uploader: s.uploadedBy.name,
+        audioUrl: s.mediaUrl,
+        isVideo: s.isVideo,
+        genre: s.genre.name,
+        vibe: s.vibe.name,
+      );
+
+  static String _formatSeconds(int? seconds) {
+    if (seconds == null || seconds <= 0) return '--:--';
+    final m = seconds ~/ 60;
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   /// Same track played from [path] (the extracted backing audio).
   Track withLocalPath(String path) => Track(
         id: id,
@@ -41,6 +76,35 @@ class Track {
         isVideo: false, // the player always gets the extracted audio
         genre: genre,
         vibe: vibe,
+      );
+
+  /// Saved with a recording, so the take can find its backing track again.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'language': language,
+        'duration': duration,
+        'uploader': uploader,
+        'points': points,
+        'audioUrl': audioUrl,
+        'localPath': localPath,
+        'isVideo': isVideo,
+        'genre': genre,
+        'vibe': vibe,
+      };
+
+  factory Track.fromJson(Map<String, dynamic> m) => Track(
+        id: m['id'] as String,
+        title: m['title'] as String,
+        language: m['language'] as String? ?? '',
+        duration: m['duration'] as String? ?? '',
+        uploader: m['uploader'] as String? ?? '',
+        points: m['points'] as int? ?? 5,
+        audioUrl: m['audioUrl'] as String? ?? '',
+        localPath: m['localPath'] as String?,
+        isVideo: m['isVideo'] as bool? ?? false,
+        genre: m['genre'] as String? ?? '',
+        vibe: m['vibe'] as String? ?? '',
       );
 
   Track withDuration(String value) => Track(
@@ -64,86 +128,3 @@ Color trackColor(Track track) {
   return [SwaramColors.amber, SwaramColors.pinkSoft, SwaramColors.teal][sum % 3];
 }
 
-// Test audio URLs. Replace with your real track URLs from the API.
-const List<Track> kSampleTracks = [
-  Track(
-    id: 't1',
-    title: 'Monsoon Evenings',
-    language: 'Malayalam',
-    duration: '4:12',
-    uploader: '@anjali_k',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't2',
-    title: 'Chai & Radio',
-    language: 'Hindi',
-    duration: '3:55',
-    uploader: '@rohit.m',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't3',
-    title: 'Marina Sunrise',
-    language: 'Tamil',
-    duration: '4:05',
-    uploader: '@karthik_r',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't4',
-    title: 'Kayal Moonlight',
-    language: 'Malayalam',
-    duration: '3:48',
-    uploader: '@meera.s',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't5',
-    title: 'Temple Bells at Dusk',
-    language: 'Malayalam',
-    duration: '4:30',
-    uploader: '@arjun_n',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't6',
-    title: 'Neon Highway',
-    language: 'Telugu',
-    duration: '3:40',
-    uploader: '@sai_v',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't7',
-    title: 'Rain on Tin Roofs',
-    language: 'Tamil',
-    duration: '4:22',
-    uploader: '@divya_p',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-  Track(
-    id: 't8',
-    title: 'Midnight Ghazal',
-    language: 'Hindi',
-    duration: '5:02',
-    uploader: '@imran.k',
-    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-    genre: 'Romantic',
-    vibe: "90's vibe",
-  ),
-];

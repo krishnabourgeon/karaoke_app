@@ -545,7 +545,9 @@
 
 
 import 'package:flutter/material.dart';
+import 'package:karaoke_app/provider/upload_provider.dart';
 import 'package:karaoke_app/view/common_widgets/swaram_common.dart';
+import 'package:provider/provider.dart';
 import 'package:karaoke_app/view/common_widgets/track.dart';
 import 'package:karaoke_app/view/video_player_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -580,20 +582,79 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+/// Registered in MaterialApp.navigatorObservers, so the dashboard hears
+/// when a screen pushed on top of it is closed.
+final RouteObserver<ModalRoute<void>> dashboardRouteObserver =
+    RouteObserver<ModalRoute<void>>();
+
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver, RouteAware {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   String _query = '';
   String _language = 'All';
 
+  /// Songs are reloaded at most this often by the automatic triggers
+  /// (back to the app, back to this screen). Pull-to-refresh always reloads.
+  static const _autoRefreshGap = Duration(seconds: 15);
+  DateTime? _lastLoad;
+
   @override
   void initState() {
     super.initState();
     Permission.notification.request();
+    WidgetsBinding.instance.addObserver(this);
+    // After the first frame, so the provider's notifyListeners does not
+    // fire while this screen is still building.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) dashboardRouteObserver.subscribe(this, route);
+  }
+
+  Future<void> _refresh() {
+    _lastLoad = DateTime.now();
+    return context.read<UploadProvider>().getSongs();
+  }
+
+  /// Reloads so newly approved songs show up without restarting the app.
+  void _autoRefresh() {
+    if (!mounted) return;
+    final last = _lastLoad;
+    if (last != null && DateTime.now().difference(last) < _autoRefreshGap) {
+      return;
+    }
+    _refresh();
+  }
+
+  // The app came back to the foreground.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _autoRefresh();
+  }
+
+  // A screen opened from here (song, upload, search, library, profile)
+  // was closed and the dashboard is visible again.
+  @override
+  void didPopNext() => _autoRefresh();
+
+  /// Loads the next page when the list is scrolled near its end.
+  bool _onListScroll(ScrollNotification n) {
+    if (n.metrics.axis == Axis.vertical &&
+        n.metrics.extentAfter < 300) {
+      context.read<UploadProvider>().loadMoreSongs();
+    }
+    return false;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    dashboardRouteObserver.unsubscribe(this);
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -698,6 +759,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildScaffold(BuildContext context) {
     final tracks = _filtered;
+    final songs = context.watch<UploadProvider>();
+    final noSongsYet = _allTracks.isEmpty;
 
     return Scaffold(
       backgroundColor: SwaramColors.bg,
@@ -805,21 +868,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               Expanded(
-                child: tracks.isEmpty
-                    ? const _EmptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                        itemCount: tracks.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, i) => GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _openSong(tracks, i),
-                          child: _TrackTile(
-                            track: tracks[i],
-                            color: trackColor(tracks[i]),
-                            onDownload: () => _handleDownload(tracks[i]),
-                          ),
-                        ),
+                child: noSongsYet && songs.songsLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: SwaramColors.amber),
+                      )
+                    : RefreshIndicator(
+                        color: SwaramColors.amber,
+                        backgroundColor: SwaramColors.card,
+                        onRefresh: _refresh,
+                        child: tracks.isEmpty
+                            // Scrollable so pull-to-refresh works when empty.
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  const SizedBox(height: 60),
+                                  noSongsYet && songs.songsError != null
+                                      ? _EmptyState(
+                                          title: 'Could not load songs',
+                                          message: songs.songsError!,
+                                          icon: Icons.cloud_off_rounded,
+                                        )
+                                      : noSongsYet
+                                          ? const _EmptyState(
+                                              title: 'No songs yet',
+                                              message:
+                                                  'Upload a karaoke to get started.',
+                                              icon: Icons.library_music_outlined,
+                                            )
+                                          : const _EmptyState(),
+                                ],
+                              )
+                            : NotificationListener<ScrollNotification>(
+                                onNotification: _onListScroll,
+                                child: ListView.separated(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(
+                                      20, 0, 20, 110),
+                                  // One extra row for the "loading more" spinner.
+                                  itemCount: tracks.length +
+                                      (songs.songsLoadingMore ? 1 : 0),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (context, i) {
+                                    if (i >= tracks.length) {
+                                      return const Padding(
+                                        padding:
+                                            EdgeInsets.symmetric(vertical: 12),
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.5,
+                                              color: SwaramColors.amber,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => _openSong(tracks, i),
+                                      child: _TrackTile(
+                                        track: tracks[i],
+                                        color: trackColor(tracks[i]),
+                                        onDownload: () =>
+                                            _handleDownload(tracks[i]),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                       ),
               ),
             ],
@@ -1107,30 +1228,39 @@ class _TrackTile extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final String title;
+  final String message;
+  final IconData icon;
+
+  const _EmptyState({
+    this.title = 'No tracks found',
+    this.message = 'Try another name or language.',
+    this.icon = Icons.search_off,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.only(bottom: 80),
+        padding: const EdgeInsets.only(bottom: 80),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, color: SwaramColors.muted, size: 40),
-            SizedBox(height: 12),
+            Icon(icon, color: SwaramColors.muted, size: 40),
+            const SizedBox(height: 12),
             Text(
-              'No tracks found',
-              style: TextStyle(
+              title,
+              style: const TextStyle(
                 color: SwaramColors.text,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
-              'Try another name or language.',
-              style: TextStyle(color: SwaramColors.muted, fontSize: 13),
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: SwaramColors.muted, fontSize: 13),
             ),
           ],
         ),
