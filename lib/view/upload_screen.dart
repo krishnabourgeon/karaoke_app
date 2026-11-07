@@ -2,13 +2,10 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:karaoke_app/model/masters_model.dart';
 import 'package:karaoke_app/provider/upload_provider.dart';
 import 'package:karaoke_app/view/common_widgets/swaram_common.dart';
 import 'package:video_player/video_player.dart';
-import 'library_store.dart';
 import 'package:provider/provider.dart';
 
 
@@ -61,9 +58,6 @@ class _UploadScreenState extends State<UploadScreen>
 
   final TextEditingController _titleController = TextEditingController();
   PlatformFile? _picked;
-  String? _language;
-  String? _genre; // pick one, tap again to clear
-  String? _vibe; // pick one, tap again to clear
   bool _saving = false;
   String? _titleError;
   String? _fileError;

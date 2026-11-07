@@ -191,7 +191,6 @@ class FavoritesStore {
     final next = {...ids.value};
     if (!next.remove(id)) next.add(id);
     ids.value = next;
-    // TODO: also send this to your API when it exists.
     _prefs?.setStringList(_key, next.toList());
   }
 }

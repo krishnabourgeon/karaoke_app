@@ -129,7 +129,6 @@ class _SignUpScreenState extends State<SignUpScreen>
 
     setState(() => _loading = true);
 
-    // TODO: replace with your API call (POST /auth/register).
     //
     // try {
     //   await AuthRepository().register(
@@ -442,7 +441,6 @@ class _SignUpScreenState extends State<SignUpScreen>
                     : null,
               ),
               const SizedBox(width: 12),
-              // TODO: open your Terms and Privacy pages from these two words.
               const Expanded(
                 child: Text.rich(
                   TextSpan(

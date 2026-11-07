@@ -144,7 +144,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
     setState(() => _loading = true);
 
-    // TODO: POST /auth/password/forgot  { "identifier": _idController.text.trim() }
     // The server always answers 202, so this step never says whether the
     // account exists.
     await Future.delayed(const Duration(milliseconds: 1000));
@@ -168,7 +167,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
 
     setState(() => _loading = true);
 
-    // TODO: POST /auth/password/reset
     //   { "identifier": ..., "code": _codeController.text, "newPassword": ... }
     // If the server says the code is wrong or expired:
     //   setState(() { _loading = false; _codeError = 'That code is wrong or has expired'; });

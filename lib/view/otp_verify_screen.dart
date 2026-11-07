@@ -156,7 +156,6 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen>
     }
     _listenForSms();
 
-    // TODO: replace with your resend-OTP API call.
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
